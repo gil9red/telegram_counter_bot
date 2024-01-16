@@ -39,9 +39,9 @@ PATTERN_SET_VALUE = re.compile(r"(.+)=(\d+)")
 def get_button(mode: CounterMode, value: int) -> InlineKeyboardButton:
     match mode:
         case CounterMode.INCREMENT:
-            text = f"➕ ({value})"
+            text = f"⬆️ ({value})"
         case CounterMode.DECREMENT:
-            text = "➖"
+            text = "⬇️"
         case CounterMode.RESET:
             text = "🔄"
         case _:
