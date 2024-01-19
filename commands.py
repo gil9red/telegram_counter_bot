@@ -227,7 +227,10 @@ async def on_process_counter(
             if SettingsMode.READ_ONLY_FALSE in settings:
                 settings.remove(SettingsMode.READ_ONLY_FALSE)
 
-    await update.callback_query.answer(text=answer_text)
+    await update.callback_query.answer(
+        text=answer_text,
+        show_alert=bool(answer_text),
+    )
 
     try:
         await update.effective_message.edit_reply_markup(
