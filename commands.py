@@ -27,6 +27,8 @@ from third_party.regexp import fill_string_pattern
 class SettingsMode(enum.Enum):
     SHOW = "1"
     HIDE = "0"
+    READ_ONLY_TRUE = "R"
+    READ_ONLY_FALSE = "E"
 
 
 @enum.unique
@@ -36,20 +38,28 @@ class CounterMode(enum.Enum):
     RESET = "@"
     SHOW = "1"
     HIDE = "0"
+    READ_ONLY_TRUE = "R"
+    READ_ONLY_FALSE = "E"
 
 
 PATTERN_COUNTER = re.compile(
-    rf"^([{"".join(re.escape(x.value) for x in CounterMode)}])"
+    rf"^([{''.join(re.escape(x.value) for x in CounterMode)}])"
     rf"counter=(\d+),"
-    rf"settings=([{"".join(re.escape(x.value) for x in SettingsMode)}])$"
+    rf"settings=([{''.join(re.escape(x.value) for x in SettingsMode)}]+)$"
 )
 PATTERN_SET_VALUE = re.compile(r"(.+)=(\d+)")
 
 
-def get_button(mode: CounterMode, value: int, settings: SettingsMode = None) -> InlineKeyboardButton:
+def get_button(
+    mode: CounterMode,
+    value: int,
+    settings: set[SettingsMode],
+) -> InlineKeyboardButton:
+    is_read_only = SettingsMode.READ_ONLY_TRUE in settings
+
     match mode:
         case CounterMode.INCREMENT:
-            text = f"🔼 ({value})"
+            text = f"{value}" if is_read_only else f"🔼 ({value})"
         case CounterMode.DECREMENT:
             text = "🔽"
         case CounterMode.RESET:
@@ -58,30 +68,57 @@ def get_button(mode: CounterMode, value: int, settings: SettingsMode = None) -> 
             text = "⚙️⬇"
         case CounterMode.HIDE:
             text = "⚙️⬆"
+        case CounterMode.READ_ONLY_TRUE:
+            text = "✅ Read only"
+        case CounterMode.READ_ONLY_FALSE:
+            text = "⬜ Read only"
         case _:
             raise Exception(f"Unsupported mode: {mode}")
 
     return InlineKeyboardButton(
         text=text,
         callback_data=fill_string_pattern(
-            PATTERN_COUNTER, mode.value, value, settings.value
+            PATTERN_COUNTER,
+            mode.value,
+            value,
+            "".join(x.value for x in settings)
         ),
     )
 
 
-def get_inline_keyboard_markup(settings: SettingsMode, value: int) -> InlineKeyboardMarkup:
-    is_hide = settings == SettingsMode.HIDE
+def get_inline_keyboard_markup(
+    settings: set[SettingsMode],
+    value: int,
+) -> InlineKeyboardMarkup:
+    is_hide = SettingsMode.HIDE in settings
+    is_read_only = SettingsMode.READ_ONLY_TRUE in settings
+
     rows = [
         [
             get_button(CounterMode.INCREMENT, value, settings),
-            get_button(CounterMode.SHOW if is_hide else CounterMode.HIDE, value, settings),
+            get_button(
+                CounterMode.SHOW if is_hide else CounterMode.HIDE, value, settings
+            ),
         ]
     ]
     if not is_hide:
+        if not is_read_only:
+            rows.append(
+                [
+                    get_button(CounterMode.DECREMENT, value, settings),
+                    get_button(CounterMode.RESET, value, settings),
+                ]
+            )
+
         rows.append(
             [
-                get_button(CounterMode.DECREMENT, value, settings),
-                get_button(CounterMode.RESET, value, settings),
+                get_button(
+                    CounterMode.READ_ONLY_TRUE
+                    if is_read_only
+                    else CounterMode.READ_ONLY_FALSE,
+                    value,
+                    settings,
+                ),
             ]
         )
 
@@ -124,7 +161,7 @@ async def on_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await message.reply_text(
         text,
         reply_markup=get_inline_keyboard_markup(
-            settings=SettingsMode.HIDE,
+            settings={SettingsMode.HIDE},
             value=value,
         ),
     )
@@ -144,21 +181,49 @@ async def on_process_counter(
     except:
         value = new_value
 
-    settings = SettingsMode(context.match.group(3))
+    settings = {SettingsMode(x) for x in context.match.group(3)}
+
+    is_read_only = SettingsMode.READ_ONLY_TRUE in settings
+
+    answer_text = None
+    answer_text_read_only = "Cannot edit while read-only mode is enabled"
 
     match mode:
         case CounterMode.INCREMENT:
-            value += 1
-        case CounterMode.DECREMENT:
-            value -= 1
-        case CounterMode.RESET:
-            value = new_value
-        case CounterMode.SHOW:
-            settings = SettingsMode.SHOW
-        case CounterMode.HIDE:
-            settings = SettingsMode.HIDE
+            if not is_read_only:
+                value += 1
+            else:
+                answer_text = answer_text_read_only
 
-    await update.callback_query.answer()
+        case CounterMode.DECREMENT:
+            if not is_read_only:
+                value -= 1
+            else:
+                answer_text = answer_text_read_only  # NOTE: До сюда не должно дойти, т.к. кнопка должна быть скрыта
+
+        case CounterMode.RESET:
+            if not is_read_only:
+                value = new_value
+            else:
+                answer_text = answer_text_read_only  # NOTE: До сюда не должно дойти, т.к. кнопка должна быть скрыта
+
+        case CounterMode.SHOW:
+            settings.add(SettingsMode.SHOW)
+            settings.remove(SettingsMode.HIDE)
+
+        case CounterMode.HIDE:
+            settings.add(SettingsMode.HIDE)
+            settings.remove(SettingsMode.SHOW)
+
+        case CounterMode.READ_ONLY_TRUE:
+            settings.add(SettingsMode.READ_ONLY_TRUE)
+            settings.remove(SettingsMode.READ_ONLY_FALSE)
+
+        case CounterMode.READ_ONLY_FALSE:
+            settings.add(SettingsMode.READ_ONLY_FALSE)
+            settings.remove(SettingsMode.READ_ONLY_TRUE)
+
+    await update.callback_query.answer(text=answer_text)
 
     try:
         await update.effective_message.edit_reply_markup(
