@@ -209,19 +209,23 @@ async def on_process_counter(
 
         case CounterMode.SHOW:
             settings.add(SettingsMode.SHOW)
-            settings.remove(SettingsMode.HIDE)
+            if SettingsMode.HIDE in settings:
+                settings.remove(SettingsMode.HIDE)
 
         case CounterMode.HIDE:
             settings.add(SettingsMode.HIDE)
-            settings.remove(SettingsMode.SHOW)
+            if SettingsMode.SHOW in settings:
+                settings.remove(SettingsMode.SHOW)
 
         case CounterMode.READ_ONLY_TRUE:
-            settings.add(SettingsMode.READ_ONLY_TRUE)
-            settings.remove(SettingsMode.READ_ONLY_FALSE)
+            settings.add(SettingsMode.READ_ONLY_FALSE)
+            if SettingsMode.READ_ONLY_TRUE in settings:
+                settings.remove(SettingsMode.READ_ONLY_TRUE)
 
         case CounterMode.READ_ONLY_FALSE:
-            settings.add(SettingsMode.READ_ONLY_FALSE)
-            settings.remove(SettingsMode.READ_ONLY_TRUE)
+            settings.add(SettingsMode.READ_ONLY_TRUE)
+            if SettingsMode.READ_ONLY_FALSE in settings:
+                settings.remove(SettingsMode.READ_ONLY_FALSE)
 
     await update.callback_query.answer(text=answer_text)
 
