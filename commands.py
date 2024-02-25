@@ -47,7 +47,7 @@ PATTERN_COUNTER = re.compile(
     rf"counter=(\d+),"
     rf"settings=([{''.join(re.escape(x.value) for x in SettingsMode)}]+)$"
 )
-PATTERN_SET_VALUE = re.compile(r"(.+)=(\d+)")
+PATTERN_SET_VALUE = re.compile(r"(.+)=(\d+)", flags=re.DOTALL)
 
 
 def get_button(
