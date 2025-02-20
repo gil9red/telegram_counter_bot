@@ -4,6 +4,8 @@
 __author__ = "ipetrash"
 
 
+import time
+
 from telegram.ext import Application
 
 import commands
@@ -35,4 +37,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    while True:
+        try:
+            main()
+        except:
+            log.exception("")
+
+            timeout = 15
+            log.info(f"Restarting the bot after {timeout} seconds")
+            time.sleep(timeout)
